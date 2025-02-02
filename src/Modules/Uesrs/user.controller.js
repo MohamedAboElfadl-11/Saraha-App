@@ -12,8 +12,8 @@ const { USER, ADMIN } = systemRoles
 userRouter.use(errorHandlerMiddleware(authenticationMiddleware()))
 
 userRouter.get("/profile", authorizationMiddleware([USER]), errorHandlerMiddleware(userService.getProfile));
-userRouter.patch("/update-password", userService.updatePasswordService);
-userRouter.put("/update-profile", userService.updateProfileService);
-userRouter.get("/list", authorizationMiddleware([ADMIN]), userService.listUserService)
+userRouter.patch("/update-password", errorHandlerMiddleware(userService.updatePasswordService));
+userRouter.put("/update-profile", errorHandlerMiddleware(userService.updateProfileService));
+userRouter.get("/list", authorizationMiddleware([ADMIN]), errorHandlerMiddleware(userService.listUserService))
 
 export default userRouter
