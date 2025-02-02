@@ -3,13 +3,14 @@ import UserModel from "../../../DB/Models/user.model.js";
 import * as secure from "../../../Utils/crypto.js";
 import { emitter } from "../../../Services/sende-email.service.js";
 import jwt from "jsonwebtoken";
-import { v4 as uuidv4 } from 'uuid';
+import { v4 as uuidv4 } from "uuid";
 import BlackListTokensModel from "../../../DB/Models/black-list.model.js";
 
 // signup service
 export const signupService = async (req, res) => {
-
-  const { username, email, phone, password, gender, age, role } = req.body;
+  const { username, email, phone, password, confirmPassword, gender, age, role } = req.body;
+  if (password !== confirmPassword)
+    return res.status(400).json({ message: "Dosn't match" });
   // find email
   const emailExist = await UserModel.findOne({ email });
   if (emailExist)
@@ -53,7 +54,7 @@ export const signupService = async (req, res) => {
     phone: encryptedPhone,
     gender,
     age,
-    role
+    role,
   });
 
   res.status(201).json({
@@ -86,7 +87,6 @@ export const verifyEmailService = async (req, res) => {
 // login service
 export const loginService = async (req, res) => {
   const { email, password } = req.body;
-
   const user = await UserModel.findOne({ email });
   if (!user)
     return res.status(409).json({
@@ -99,9 +99,17 @@ export const loginService = async (req, res) => {
       message: "Invalid email or password",
     });
   // genetrate access token to login service
-  const accessToken = jwt.sign({ _id: user._id, email: user.email }, process.env.JWT_ACCESS, { expiresIn: 1800, jwtid: uuidv4() });
+  const accessToken = jwt.sign(
+    { _id: user._id, email: user.email },
+    process.env.JWT_ACCESS,
+    { expiresIn: 1800, jwtid: uuidv4() }
+  );
   // generate refresh token => generate new access token
-  const refreshtoken = jwt.sign({ _id: user._id, email: user.email }, process.env.JWT_REFRESH, { expiresIn: '7d', jwtid: uuidv4() });
+  const refreshtoken = jwt.sign(
+    { _id: user._id, email: user.email },
+    process.env.JWT_REFRESH,
+    { expiresIn: "7d", jwtid: uuidv4() }
+  );
   res.status(200).json({
     message: "Login successfully",
     accessToken,
@@ -110,14 +118,18 @@ export const loginService = async (req, res) => {
 };
 
 export const refreshTokenService = async (req, res) => {
-  const { refreshtoken } = req.headers
-  const decodedData = jwt.verify(refreshtoken, process.env.JWT_REFRESH)
-  console.log(decodedData)
-  const accessToken = jwt.sign({ _id: decodedData._id, email: decodedData.email }, process.env.JWT_ACCESS, { expiresIn: 1800 });
+  const { refreshtoken } = req.headers;
+  const decodedData = jwt.verify(refreshtoken, process.env.JWT_REFRESH);
+  console.log(decodedData);
+  const accessToken = jwt.sign(
+    { _id: decodedData._id, email: decodedData.email },
+    process.env.JWT_ACCESS,
+    { expiresIn: 1800 }
+  );
   res.status(200).json({
     message: "Token refershed successfully",
-    accessToken
-  })
+    accessToken,
+  });
 };
 
 // 1- accsess token => expired in 1h
@@ -125,31 +137,30 @@ export const refreshTokenService = async (req, res) => {
 
 // logout service
 export const logoutService = async (req, res) => {
-
   const { accesstoken, refreshtoken } = req.headers;
   // verify the token
-  const decodedData = jwt.verify(accesstoken, process.env.JWT_ACCESS)
-  const decodeRefreshToken = jwt.verify(refreshtoken, process.env.JWT_REFRESH)
+  const decodedData = jwt.verify(accesstoken, process.env.JWT_ACCESS);
+  const decodeRefreshToken = jwt.verify(refreshtoken, process.env.JWT_REFRESH);
   await BlackListTokensModel.insertMany([
     {
       tokenId: decodedData.jti,
-      expiryDate: decodedData.exp
+      expiryDate: decodedData.exp,
     },
     {
       tokenId: decodeRefreshToken.jti,
-      expiryDate: decodeRefreshToken.exp
-    }
-  ])
-  res.status(200).json({ message: "User logged out successfully" })
-}
+      expiryDate: decodeRefreshToken.exp,
+    },
+  ]);
+  res.status(200).json({ message: "User logged out successfully" });
+};
 
 // forget password service
 export const forgetPasswordService = async (req, res) => {
-  const { email } = req.body
-  const user = await UserModel.findOne({ email })
-  if (!user) return res.status(400).json({ message: "User not found" })
+  const { email } = req.body;
+  const user = await UserModel.findOne({ email });
+  if (!user) return res.status(400).json({ message: "User not found" });
   // generate OTP
-  const otp = Math.floor(Math.random() * 10000)
+  const otp = Math.floor(Math.random() * 10000);
   // send OTP to user throw email
   emitter.emit("sendEmail", {
     to: user.email,
@@ -160,31 +171,38 @@ export const forgetPasswordService = async (req, res) => {
   });
   // hashing OTP
   const hashedOtp = secure.hashing(otp.toString(), Number(process.env.SALT));
-  user.otp = hashedOtp
+  user.otp = hashedOtp;
   await user.save();
   res.status(200).json({
-    message: "OTP sent successfully"
+    message: "OTP sent successfully",
   });
-}
+};
 
 // reset password service
 export const resetPasswordService = async (req, res) => {
+  const { email, otp, password, confirmPassword } = req.body;
+  if (password !== confirmPassword)
+    return res.status(400).json({ message: "Dosn't match" });
 
-  const { email, otp, password, confirmPassword } = req.body
-  if (password !== confirmPassword) return res.status(400).json({ message: "Dosn't match" })
+  const user = await UserModel.findOne({ email });
+  if (!user) return res.status(400).json({ message: "User not found" });
 
-  const user = await UserModel.findOne({ email })
-  if (!user) return res.status(400).json({ message: "User not found" })
-
-  if (!user.otp) return res.status(400).json({ message: "generate new otp" })
+  if (!user.otp) return res.status(400).json({ message: "generate new otp" });
   // compare otp between user otp
-  const isOtpMatched = await secure.comparing(otp.toString(), user.otp)
-  if (!isOtpMatched) return res.status(404).json({ message: "Otp not matched" })
+  const isOtpMatched = await secure.comparing(otp.toString(), user.otp);
+  if (!isOtpMatched)
+    return res.status(404).json({ message: "Otp not matched" });
 
   // hashing new password
-  const hashedPassword = await secure.hashing(password, Number(process.env.SALT));
+  const hashedPassword = secure.hashing(
+    password,
+    Number(process.env.SALT)
+  );
 
   // update new password and remove otp fromDB
-  await UserModel.updateOne({ email }, { password: hashedPassword, $unset: { otp: "" } })
-  res.status(200).json({ message: "password reseted successfully" })
-}
+  await UserModel.updateOne(
+    { email },
+    { password: hashedPassword, $unset: { otp: "" } }
+  );
+  res.status(200).json({ message: "password reseted successfully" });
+};
