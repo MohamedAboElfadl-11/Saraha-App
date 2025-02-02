@@ -21,7 +21,7 @@ A secure backend system for sending and receiving anonymous messages with user a
 - **Authentication**: JSON Web Tokens (JWT)
 - **Security**: Bcrypt for password hashing
 - **Error Handling**: Custom middleware system
-- **Validation**: Express Validator
+- **Validation**: JOI
 
 ## 📦 Installation  
 1. Clone the repository:
