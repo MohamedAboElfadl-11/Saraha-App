@@ -10,7 +10,7 @@ import BlackListTokensModel from "../../../DB/Models/black-list.model.js";
 export const signupService = async (req, res) => {
   try {
     const { username, email, phone, password, gender, age, role } = req.body;
-    if (!username || !email || !password || !phone || !gender || !age || !role)
+    if (!username || !email || !password || !phone || !gender || !age)
       return res.status(400).json({
         message: "All data are required",
       });
@@ -33,8 +33,7 @@ export const signupService = async (req, res) => {
       expiresIn: 1800,
     });
 
-    // confirm email link (dynamicly)
-    // email link => http://localhost/3000/auth/verify/${email}
+    // confirm email link (dynamicly) http://localhost/3000/auth/verify/${email}
     const confirmEmailLink = `${req.protocol}://${req.headers.host}/auth/verify/${token}`;
 
     // send email
